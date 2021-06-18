@@ -1,6 +1,27 @@
 #!/bin/bash
+#======================================================================
+#
+# Name: sbnpoms_wrapperfcl_maker.sh
+#
+# Purpose: Make an empty wrapper fcl file.
+#
+# Usage: sbnpoms_wrapperfcl_maker.sh [options]
+#
+# Options:
+#
+# -h|-?|--help        - Print help message.
+# --fclname <fcl>     - Wrapped fcl file.
+# --wrappername <fcl> - Wrapper fcl file.
+#
+#======================================================================
  
+# Help function
+function show_help {
+  awk '/# Usage:/,/#======/{print $0}' $0 | head -n -3 | cut -c3-
+}
+
 #Take in all of the arguments
+verbose=0
 while :; do
     case $1 in
         -h|-\?|--help)
@@ -26,12 +47,6 @@ while :; do
             fi
             ;;
 
-#        --file=?*)
-#            file=${1#*=} # Delete everything up to "=" and assign the remainder.
-#            ;;
-#        --file=)         # Handle the case of an empty --file=
-#            echo 'ERROR: "--file" requires a non-empty option argument.'
-#            ;;
         -v|--verbose)
             verbose=$((verbose + 1))  # Each -v adds 1 to verbosity.
             ;;
@@ -62,5 +77,6 @@ echo "$0: WRAPPERNAME is $WRAPPERNAME"
 
 
 #Start the injection
-echo "#Wrapper fcl created by $0" >> $WRAPPERNAME
+rm -f $WRAPPERNAME
+echo "#Wrapper fcl created by $0" > $WRAPPERNAME
 echo -e "#include \"$FCLNAME\"" >> $WRAPPERNAME
