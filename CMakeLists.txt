@@ -22,7 +22,7 @@ cet_cmake_env( noarch )
 find_ups_product(cetbuildtools)
 
 # Scripts
-#add_subdirectory(scripts)
+add_subdirectory(scripts)
 
 # ups - table and config files
 # must be AFTER all other subdirectories
