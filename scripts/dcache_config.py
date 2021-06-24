@@ -25,8 +25,14 @@
 
 from __future__ import print_function
 import sys, os
+try:
+    import urllib.request as urlrequest
+except ImportError:
+    import urllib as urlrequest
 
 markdown = False
+files_in_transition = None
+
 
 # Help function.
 
@@ -49,6 +55,43 @@ def help():
                 print()
 
 
+# Convert bytes or unicode string to default python str type.
+# Works on python 2 and python 3.
+
+def convert_str(s):
+
+    result = ''
+
+    if type(s) == type(''):
+
+        # Already a default str.
+        # Just return the original.
+
+        result = s
+
+    elif type(s) == type(u''):
+
+        # Unicode and not str.
+        # Convert to bytes.
+
+        result = s.encode()
+
+    elif type(s) == type(b''):
+
+        # Bytes and not str.
+        # Convert to unicode.
+
+        result = s.decode()
+
+    else:
+
+        # Last resort, use standard str conversion.
+
+        result = str(s)
+
+    return result
+
+
 # Get dCache tags for a directory.
 # Return value is a dictionary of {tag: value}
 
@@ -69,28 +112,57 @@ def get_tags(dir):
     return result
         
 
+# Check SFA status of file family.
+
+def get_sfa(experiment, tags):
+
+    global files_in_transition
+
+    tags['sfa'] = 'No'
+
+    if 'file_family' in tags:
+        file_family = tags['file_family']
+        if file_family != '':
+            if files_in_transition == None:
+                files_in_transition = []
+
+                # Download "Files in Transition" web page.
+
+                url = 'https://www-stken.fnal.gov/cgi-bin/enstore_sfa_files_in_transition_cgi.py'
+                result = urlrequest.urlopen(url)
+                for line in result.readlines():
+                    files_in_transition.append(convert_str(line))
+            tag = '%s.%s' % (experiment, file_family)
+            for line in files_in_transition:
+                if line.find(tag) >= 0:
+                    tags['sfa'] = 'Yes'
+
 
 # Analyze directory.
 
-def check_dir(dir, depth, min_depth, max_depth, parent_tags):
+def check_dir(experiment, dir, depth, min_depth, max_depth, parent_tags):
     tags = get_tags(dir)
+    get_sfa(experiment, tags)
     if depth <= min_depth or tags != parent_tags:
         file_family = tags['file_family']
         file_family_width = tags['file_family_width']
         file_family_wrapper = tags['file_family_wrapper']
         library = tags['library']
+        sfa = tags['sfa']
         if markdown:
-            print('| %s | %s | %s | %s | %s |' % (dir,
+            print('| %s | %s | %s | %s | %s | %s |' % (dir,
                                                   file_family,
                                                   file_family_width,
                                                   file_family_wrapper,
-                                                  library))
+                                                  library,
+                                                  sfa))
         else:
-            print('%-55s   %-27s   %-8s   %-11s   %-10s' % (dir,
+            print('%-55s   %-27s   %-8s   %-11s   %-10s   %-3s' % (dir,
                                                             file_family,
                                                             file_family_width,
                                                             file_family_wrapper,
-                                                            library))
+                                                            library,
+                                                            sfa))
         #print(parent_tags)
         #print(tags)
     descend = True
@@ -113,7 +185,7 @@ def check_dir(dir, depth, min_depth, max_depth, parent_tags):
         for ele in contents:
             subpath = os.path.join(dir, ele)
             if os.path.isdir(subpath) and not ele.startswith('.Trash'):
-                check_dir(subpath, depth+1, min_depth, max_depth, tags)
+                check_dir(experiment, subpath, depth+1, min_depth, max_depth, tags)
     return
 
 
@@ -162,19 +234,21 @@ def main(argv):
     # Done parsing.
 
     if markdown:        
-        print('| %s | %s | %s | %s | %s |' % ('Directory',
+        print('| %s | %s | %s | %s | %s | %s |' % ('Directory',
                                               'File family',
                                               'Width',
                                               'Wrapper',
-                                              'Library'))
+                                              'Library',
+                                              'SFA'))
         print('| --- | --- | --- | --- | --- |')
     else:
-        print('%-55s   %-27s   %-8s   %-11s   %-10s' % ('Directory',
+        print('%-55s   %-27s   %-8s   %-11s   %-10s   %-3s' % ('Directory',
                                                         'File family',
                                                         'Width',
                                                         'Wrapper',
-                                                        'Library'))
-    check_dir(rootdir, 2, min_depth, max_depth, {})
+                                                        'Library',
+                                                        'SFA'))
+    check_dir(experiment, rootdir, 2, min_depth, max_depth, {})
 
     # Done
 
