@@ -30,8 +30,26 @@ try:
 except ImportError:
     import urllib as urlrequest
 
-markdown = False
 files_in_transition = None
+
+# Mapping from storage_group.file_family to dCache pool.
+
+poolmap = {'uboone.scratch': 'PublicScratchPools',
+           'uboone.persistent': 'UbooneAnalysisPools',
+           'uboone.resilient': '',
+           'uboone.data_raw': 'UbooneReadWritePools (write)',
+           'sbnd.scratch': 'PublicScratchPools',
+           'sbnd.persistent': 'SbndAnalysisPools',
+           'sbnd.resilient': '',
+           'sbnd.raw': 'SbndReadWritePools (write)',
+           'icarus.scratch': 'PublicScratchPools',
+           'icarus.persistent': 'IcarusAnalysisPools',
+           'icarus.resilient': '',
+           'icarus.raw': 'IcarusReadWritePools (write)',
+           'sbn.scratch': 'PublicScratchPools',
+           'sbn.persistent': 'SbnAnalysisPools',
+           'sbn.resilient': '',
+           'sbn.raw': 'SbnReadWritePools (write)'}
 
 
 # Help function.
@@ -92,12 +110,47 @@ def convert_str(s):
     return result
 
 
+# Print config.
+
+def print_config(config, markdown):
+
+    # Calculate format and header separator line.
+
+    fmt = ''
+    headsep = ''
+    if markdown:
+        fmt = '| %s | %s | %s | %s | %s | %s | %s | %s |'
+        headsep = '| --- | --- | --- | --- | --- | --- | --- | --- |'
+    else:
+        maxlens = []
+        for tup in config:
+            for i in range(len(tup)):
+                while len(maxlens) < len(tup):
+                    maxlens.append(0)
+                if maxlens[i] < len(tup[i]):
+                    maxlens[i] = len(tup[i])
+        for maxlen in maxlens:
+            fmt += '%%-%ds' % (maxlen+3)
+
+    # Print config data, including header.        
+
+    for tup in config:
+        print(fmt % tup)
+        if headsep != '':
+            print(headsep)
+        headsep = ''
+
+    # Done.
+
+    return
+
+
 # Get dCache tags for a directory.
 # Return value is a dictionary of {tag: value}
 
 def get_tags(dir):
     result = {}
-    all_tags = ('file_family', 'file_family_width', 'file_family_wrapper', 'library')
+    all_tags = ('storage_group', 'file_family', 'file_family_width', 'file_family_wrapper', 'library')
     for tag in all_tags:
         result[tag] = ''
     ftags = os.path.join(dir, '.(tags)()')
@@ -110,6 +163,20 @@ def get_tags(dir):
             value = open(ftag).readlines()[0].strip()
             result[tag] = value
     return result
+
+
+def get_pool(experiment, tags):
+
+    # Default pool group is readWritePools.
+
+    tags['pool'] = 'readWritePools'
+
+    if 'file_family' in tags:
+        file_family = tags['file_family']
+        if file_family != '':
+            key = '%s.%s' % (experiment, file_family)
+            if key in poolmap:
+                tags['pool'] = poolmap[key]
         
 
 # Check SFA status of file family.
@@ -140,31 +207,31 @@ def get_sfa(experiment, tags):
 
 # Analyze directory.
 
-def check_dir(experiment, dir, depth, min_depth, max_depth, parent_tags):
+def check_dir(config, experiment, dir, depth, min_depth, max_depth, parent_tags):
+
     tags = get_tags(dir)
     get_sfa(experiment, tags)
+    get_pool(experiment, tags)
     if depth <= min_depth or tags != parent_tags:
+        storage_group = tags['storage_group']
         file_family = tags['file_family']
         file_family_width = tags['file_family_width']
         file_family_wrapper = tags['file_family_wrapper']
         library = tags['library']
         sfa = tags['sfa']
-        if markdown:
-            print('| %s | %s | %s | %s | %s | %s |' % (dir,
-                                                  file_family,
-                                                  file_family_width,
-                                                  file_family_wrapper,
-                                                  library,
-                                                  sfa))
-        else:
-            print('%-55s   %-27s   %-8s   %-11s   %-10s   %-3s' % (dir,
-                                                            file_family,
-                                                            file_family_width,
-                                                            file_family_wrapper,
-                                                            library,
-                                                            sfa))
-        #print(parent_tags)
-        #print(tags)
+        pool = tags['pool']
+
+        # Update config.
+
+        config.append((dir,
+                       storage_group,
+                       file_family,
+                       file_family_width,
+                       file_family_wrapper,
+                       library,
+                       sfa,
+                       pool))
+
     descend = True
     if depth >= max_depth:
         descend = False
@@ -185,7 +252,7 @@ def check_dir(experiment, dir, depth, min_depth, max_depth, parent_tags):
         for ele in contents:
             subpath = os.path.join(dir, ele)
             if os.path.isdir(subpath) and not ele.startswith('.Trash'):
-                check_dir(experiment, subpath, depth+1, min_depth, max_depth, tags)
+                check_dir(config, experiment, subpath, depth+1, min_depth, max_depth, tags)
     return
 
 
@@ -195,10 +262,10 @@ def main(argv):
 
     # Parse arguments.
 
-    global markdown
     experiment = ''
     min_depth = 3
     max_depth = 7
+    markdown = False
     if 'EXPERIMENT' in os.environ:
         experiment = os.environ['EXPERIMENT']
 
@@ -233,22 +300,10 @@ def main(argv):
 
     # Done parsing.
 
-    if markdown:        
-        print('| %s | %s | %s | %s | %s | %s |' % ('Directory',
-                                              'File family',
-                                              'Width',
-                                              'Wrapper',
-                                              'Library',
-                                              'SFA'))
-        print('| --- | --- | --- | --- | --- |')
-    else:
-        print('%-55s   %-27s   %-8s   %-11s   %-10s   %-3s' % ('Directory',
-                                                        'File family',
-                                                        'Width',
-                                                        'Wrapper',
-                                                        'Library',
-                                                        'SFA'))
-    check_dir(experiment, rootdir, 2, min_depth, max_depth, {})
+    config = [('Directory', 'Storage Group', 'File family', 'Width', 'Wrapper',
+               'Library', 'SFA', 'Pool')]
+    check_dir(config, experiment, rootdir, 2, min_depth, max_depth, {})
+    print_config(config, markdown)
 
     # Done
 
