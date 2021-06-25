@@ -255,7 +255,8 @@ def check_dir(config, experiment, dir, depth, min_depth, max_depth, parent_tags)
             contents = []
         for ele in contents:
             subpath = os.path.join(dir, ele)
-            if os.path.isdir(subpath) and not ele.startswith('.Trash'):
+            if os.path.isdir(subpath) and not ele.startswith('.Trash') and \
+               ele != '.upload' and ele != 'pnfs':
                 check_dir(config, experiment, subpath, depth+1, min_depth, max_depth, tags)
     return
 
