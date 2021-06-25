@@ -243,6 +243,10 @@ def check_dir(config, experiment, dir, depth, min_depth, max_depth, parent_tags)
         descend = False
     if descend and os.path.basename(dir) == 'resilient':
         descend = False
+    if descend and os.path.basename(dir) == 'pnfs':
+        descend = False
+    if descend and os.path.basename(dir) == '.upload':
+        descend = False
     if descend:
         contents = []
         try:
