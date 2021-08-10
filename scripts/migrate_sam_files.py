@@ -4,7 +4,7 @@
 # Name: migrate_sam_files.py
 #
 # Purpose: Migrate files from source SAM database (SBND or ICARUS) to 
-#          target SAM database (SBN) database.
+#          target SAM database (SBN).
 #
 # Usage:
 #
@@ -26,7 +26,7 @@
 #     file in the source sam database will be migrated to the target database.
 #
 # 2.  Use options -n|--nfiles, --def, and/or --file to limit the files being
-#     migrated at one time.  With optin --file, only one file is migrated.
+#     migrated at one time.  With option --file, only one file is migrated.
 #     It is generally a good idea to specify at least one of these options,
 #     to limit the number of files returned by the initial sam query.
 #
@@ -62,7 +62,7 @@ def help():
     for line in file.readlines():
         if line[2:22] == 'migrate_sam_files.py':
             doprint = 1
-        elif line[0:6] == '######' and doprint:
+        elif (line.startswith('######') or line.startswith('# Usage notes:')) and doprint:
             doprint = 0
         if doprint:
             if len(line) > 2:
@@ -237,6 +237,8 @@ def check_file(samweb1, samweb2, experiment, f):
         samweb1.modifyFileMetadata(f, md_update)
         nmigrated += 1
 
+
+# Main procedure.
 
 def main(argv):
 
