@@ -1,0 +1,304 @@
+#! /usr/bin/env python
+########################################################################
+#
+# Name: migrate_sam_files.py
+#
+# Purpose: Migrate files from source SAM database (SBND or ICARUS) to 
+#          target SAM database (SBN) database.
+#
+# Usage:
+#
+# migrate_sam_files.py [options]
+#
+# Options:
+#
+# -h|--help             - Print help.
+# -e|--experiment <exp> - Experiment (default $SAM_EXPERIMENT).
+# -n|--nfiles <n>       - Number of files to query per iteration (default no limit).
+# --def <defname>       - Parent definition (optional, default none).
+# --file <filename>     - File name (optional, default none).
+# --niter <niter>       - Number of iterations (default 1).
+#
+# Usage notes:
+#
+#
+# 1.  This script can be invoked without any options.  In that case, every
+#     file in the source sam database will be migrated to the target database.
+#
+# 2.  Use options -n|--nfiles, --def, and/or --file to limit the files being
+#     migrated at one time.  With optin --file, only one file is migrated.
+#     It is generally a good idea to specify at least one of these options,
+#     to limit the number of files returned by the initial sam query.
+#
+# 3.  The maximum number of files migrated is <n>*<niter>.
+#
+########################################################################
+#
+# Created: 9-Aug-2021  H. Greenlee
+#
+########################################################################
+
+from __future__ import print_function
+import sys, os
+import samweb_cli
+
+# Statistics.
+
+nqueried = 0
+ndeclared = 0
+nmodified = 0
+nlocations = 0
+nmigrated = 0
+
+# Help function.
+
+def help():
+
+    filename = sys.argv[0]
+    file = open(filename, 'r')
+
+    doprint=0
+    
+    for line in file.readlines():
+        if line[2:22] == 'migrate_sam_files.py':
+            doprint = 1
+        elif line[0:6] == '######' and doprint:
+            doprint = 0
+        if doprint:
+            if len(line) > 2:
+                print(line[2:], end='')
+            else:
+                print()
+
+
+# Print metadata.
+
+def print_metadata(f, md):
+    print('\nMetadata for file %s\n' % f)
+    for k in md:
+        print('%s = %s' % (k, md[k]))
+
+
+# Check file metadata.
+
+def check_metadata(samweb1, samweb2, experiment, f):
+
+    global ndeclared
+    global nmodified    
+
+    print('Checking metadata for file %s' % f)
+
+    # Get metadata for this file.
+
+    md1 = samweb1.getMetadata(f)
+
+    # Check migrate flag.
+    # If the migrate flag is zero, this file does not require further checking.
+
+    if 'sbn.migrate' in md1:
+        migrate = md1['sbn.migrate']
+        if migrate == 0:
+            print('Migrate flag is already reset.')
+            return
+
+    # Remove keys that we never want to migrate.
+
+    for k in ('file_id', 'process_id', 'create_date', 'update_date', 'update_user', 'sbn.migrate'):
+        if k in md1:
+            del md1[k]
+
+    # Add keys that are not in the original database.
+
+    md1['sbn.experiment'] = experiment
+    md1['loc.scratch'] = 0
+
+    # Check parents.
+
+    if 'parents' in md1:
+        for parent in md1['parents']:
+
+            # Remove file_id from parent dictionary.
+
+            if 'file_id' in parent:
+                del parent['file_id']
+
+            pfname = parent['file_name']
+            check_file(samweb1, samweb2, experiment, pfname)
+
+
+    # At this point, we think that we need to add or update metadata for file f in 
+    # the target database.
+
+    md2 = {}
+    md_update = {}
+    try:
+        md2 = samweb2.getMetadata(f)
+    except:
+        md2 = {}
+
+    # Calculate metadata update for target datagase.
+    # 
+    # When modifying metadata (as opposed to declaring for the first time),
+    # never update certain fields, including 'user' and 'parents.'
+
+    for k in md1:
+        if k in md2:
+            if md2[k] != md1[k] and k != 'parents' and k != 'user':
+                print('Updating field %s' % k)
+                md_update[k] = md1[k]
+        else:
+            #print('Adding field %s' % k)
+            md_update[k] = md1[k]
+
+    if len(md_update) > 0:
+        if len(md2) > 0:
+            print('Updating metadata for file %s in target database.' % f)
+            #print(md_update)
+            samweb2.modifyFileMetadata(f, md=md_update)
+            nmodified += 1
+        else:
+            print('Declaring file %s in target database.' % f)
+            samweb2.declareFile(md=md_update)
+            ndeclared += 1
+    else:
+        print('Metadata for file %s in target database is already up to date.' % f)
+
+    return
+
+
+# Check file locations.
+
+def check_locations(samweb1, samweb2, f):
+
+    global nlocations
+
+    print('Checking locations for file %s' % f)
+    locs1 = samweb1.locateFile(f)
+    locs2 = samweb2.locateFile(f)
+    for loc1 in locs1:
+        fp1 = loc1['full_path']
+        if fp1.find('/scratch/') > 0:
+            print('Skipping scratch location %s' % fp1)
+        else:
+            print('Checking location %s' % fp1)
+
+            # Look for location with the same full_path.
+
+            loc_match = False
+            for loc2 in locs2:
+                fp2 = loc2['full_path']
+                if fp2 == fp1:
+                    loc_match = True
+                    break
+            if loc_match:
+                print('Location already exists in target database.')
+            else:
+                print('Adding location in target database.')
+                samweb2.addFileLocation(f, loc1['location'])
+                nlocations += 1
+
+    return
+
+
+# Check file metadata and locations.
+
+def check_file(samweb1, samweb2, experiment, f):
+
+    global nmigrated
+
+    check_metadata(samweb1, samweb2, experiment, f)
+    check_locations(samweb1, samweb2, f)
+
+    # Update parameter sbn.migrate to be 0.
+
+    print('Setting parameter sbn.migrate to 0 in source database')
+    md_update = {'sbn.migrate': 0}
+    samweb1.modifyFileMetadata(f, md_update)
+    nmigrated += 1
+
+
+def main(argv):
+
+    global nqueried
+    global ndeclared
+    global nmodified
+    global nlocations
+    global nmigrated
+
+    # Parse arguments.
+
+    experiment = ''
+    nfiles = 0
+    defname = ''
+    filename = ''
+    niter = 1
+    if 'SAM_EXPERIMENT' in os.environ:
+        experiment = os.environ['SAM_EXPERIMENT']
+
+    args = argv[1:]
+    while len(args) > 0:
+        if args[0] == '-h' or args[0] == '--help' :
+            help()
+            return 0
+        elif (args[0] == '-e' or args[0] == '--experiment') and len(args) > 1:
+            experiment = args[1]
+            del args[0:2]
+        elif (args[0] == '-n' or args[0] == '--nfiles') and len(args) > 1:
+            nfiles = int(args[1])
+            del args[0:2]
+        elif (args[0] == '--def') and len(args) > 1:
+            defname = args[1]
+            del args[0:2]
+        elif (args[0] == '--file') and len(args) > 1:
+            filename = args[1]
+            del args[0:2]
+        elif args[0] == '--niter' and len(args) > 1:
+            niter = int(args[1])
+            del args[0:2]
+        else:
+            print('Unknown option %s' % args[0])
+            sys.exit(1)
+
+    # Prepare sam query.
+
+    samweb1 = samweb_cli.SAMWebClient(experiment=experiment)
+    samweb2 = samweb_cli.SAMWebClient(experiment='sbn')
+    dim = ''
+    if filename != '':
+        dim = 'file_name %s' % filename
+    elif defname != '':
+        dim = 'defname: %s' % defname
+    else:
+        dim = 'file_id > 0'
+    dim += ' minus sbn.migrate 0 with availability anylocation,anystatus'
+    if nfiles > 0:
+        dim += ' with limit %d' % nfiles
+
+    # Iteration loop.
+
+    while niter > 0:
+        niter -= 1
+        files = samweb1.listFiles(dimensions=dim)
+        if len(files) == 0:
+            print('No more files.')
+            break
+        nqueried += len(files)
+        for f in files:
+            check_file(samweb1, samweb2, experiment, f)
+
+    # Print statistical summary.
+
+    print('\n%d files queried.' % nqueried)
+    print('%d files declared.' % ndeclared)
+    print('%d files modified.' % nmodified)
+    print('%d locations added.' % nlocations)
+    print('%d files migrated.' % nmigrated)
+
+    # Done
+
+    return 0
+
+# Invoke main program.
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
