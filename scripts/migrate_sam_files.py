@@ -80,11 +80,13 @@ def print_metadata(f, md):
 
 
 # Check file metadata.
+#
+# Returns the original value of sbn.migrate in the source database (0, 1, or None).
 
 def check_metadata(samweb1, samweb2, experiment, f):
 
     global ndeclared
-    global nmodified    
+    global nmodified
 
     print('Checking metadata for file %s' % f)
 
@@ -95,13 +97,14 @@ def check_metadata(samweb1, samweb2, experiment, f):
     # Check migrate flag.
     # If the migrate flag is zero, this file does not require further checking.
 
+    migrate = None
     if 'sbn.migrate' in md1:
         migrate = md1['sbn.migrate']
         if migrate == 0:
             print('Migrate flag is already reset.')
-            return
+            return migrate
 
-    # Remove keys that we never want to migrate.
+    # Remove keys that we never want to migrate in the target database.
 
     for k in ('file_id', 'process_id', 'create_date', 'update_date', 'update_user', 'sbn.migrate'):
         if k in md1:
@@ -111,6 +114,23 @@ def check_metadata(samweb1, samweb2, experiment, f):
 
     md1['sbn.experiment'] = experiment
     md1['loc.scratch'] = 0
+
+    # Fix up md5 checksum.
+
+    if 'checksum' in md1:
+        new_checksum = []
+        checksum_updated = False
+        for checksum in md1['checksum']:
+            if checksum.startswith('md5:'):
+                value = checksum[4:]
+                while len(value) < 32:
+                    value = '0' + value
+                    checksum_updated = True
+                checksum = 'md5:%s' % value
+            new_checksum.append(checksum)
+        if checksum_updated:
+            print('Fixing md5 checksum for file %s' % f)
+            md1['checksum'] = new_checksum
 
     # Check parents.
 
@@ -163,7 +183,7 @@ def check_metadata(samweb1, samweb2, experiment, f):
     else:
         print('Metadata for file %s in target database is already up to date.' % f)
 
-    return
+    return migrate
 
 
 # Check file locations.
@@ -206,15 +226,16 @@ def check_file(samweb1, samweb2, experiment, f):
 
     global nmigrated
 
-    check_metadata(samweb1, samweb2, experiment, f)
-    check_locations(samweb1, samweb2, f)
+    migrate = check_metadata(samweb1, samweb2, experiment, f)
+    if migrate != 0:
+        check_locations(samweb1, samweb2, f)
 
-    # Update parameter sbn.migrate to be 0.
+        # Update parameter sbn.migrate to be 0 in source database.
 
-    print('Setting parameter sbn.migrate to 0 in source database')
-    md_update = {'sbn.migrate': 0}
-    samweb1.modifyFileMetadata(f, md_update)
-    nmigrated += 1
+        print('Setting parameter sbn.migrate to 0 in source database')
+        md_update = {'sbn.migrate': 0}
+        samweb1.modifyFileMetadata(f, md_update)
+        nmigrated += 1
 
 
 def main(argv):
