@@ -56,6 +56,10 @@ nremoved = 0
 nscratch = 0
 nupdated = 0
 
+# Global metadata queue (list of metadata dictionaries, including file name).
+
+queued_metadata = []
+
 # Help function.
 
 def help():
@@ -77,30 +81,46 @@ def help():
                 print()
 
 
-# Check, and maybe update, parameter loc.scratch
+# Function to flush metadata queue.
 
-def check_flag(samweb, f, flag):
+def flushMetadata(samweb):
 
-    global nupdated
+    global queued_metadata
 
-    # Get metadata for this file.
-
-    md = samweb.getMetadata(f)
-    mdflag = None
-    if 'loc.scratch' in md:
-        mdflag = md['loc.scratch']
-
-    # Check whether metadata needs to be updated.
-
-    if flag != mdflag:
-        nupdated += 1
-        print('Setting loc.scratch to %d for file %s' % (flag, f))
-        md_update = {'loc.scratch': flag}
-        samweb.modifyFileMetadata(f, md_update)
+    if len(queued_metadata) > 0:
+        for md in queued_metadata:
+            print('Updating metadata for file %s' % md['file_name'])
+        samweb.modifyMetadata(queued_metadata)
+    queued_metadata = []
 
     # Done.
 
     return
+
+
+# Function to update metadata of one file.
+
+def modifyFileMetadata(samweb, f, md):
+
+    global queued_metadata
+
+    # Add file name to metadata.
+
+    md['file_name'] = f
+
+    # Add metadata to queue.
+
+    queued_metadata.append(md)
+
+    # Maybe flush queue.
+
+    if len(queued_metadata) > 21:
+        flushMetadata(samweb)
+
+    # Done.
+
+    return
+
 
 # Check a particular location for a file.
 # Returns true if the locations is valid, false if not.
@@ -128,6 +148,8 @@ def check_location(samweb, f, loc):
         nremoved += 1
         print('Removing bad location %s' % fp)
         samweb.removeFileLocation(f, loc['location'])
+    else:
+        print('Location is valid')
 
     # Done
 
@@ -135,36 +157,55 @@ def check_location(samweb, f, loc):
 
 
 # Check scratch locations for file.
-# Return value of (possibly updated) loc.scratch parameter.
 
-def check_file(samweb, f):
+def check_files(samweb, fgroup):
 
     global nscratch
+    global nupdated
 
-    print('Checking file %s' % f)
+    # Get metadata and locations.
 
-    # Get locations.
+    mdlocs = samweb.getMultipleMetadata(fgroup, locations=True)
 
-    locs = samweb.locateFile(f)
-    flag = 0
-    for loc in locs:
+    # Loop over files.
 
-        # Is this a scratch location?
+    for mdloc in mdlocs:
 
-        locloc = loc['location']
-        if locloc.find('/scratch/') > 0 and locloc.find(':/pnfs/') > 0:
-            valid = check_location(samweb, f, loc)
-            if valid:
-                nscratch += 1
-                flag = 1
+        f = mdloc['file_name']
+        print('Checking file %s' % f)
 
-    # Maybe update parameter loc.scratch.
+        # Get locations.
 
-    check_flag(samweb, f, flag)
+        locs = mdloc['locations']
+        flag = 0
+        for loc in locs:
+
+            # Is this a scratch location?
+
+            locloc = loc['location']
+            if locloc.find('/scratch/') > 0 and locloc.find(':/pnfs/') > 0:
+                valid = check_location(samweb, f, loc)
+                if valid:
+                    nscratch += 1
+                    flag = 1
+
+        # Maybe update parameter loc.scratch.
+
+        mdflag = None
+        if 'loc.scratch' in mdloc:
+            mdflag = mdloc['loc.scratch']
+
+        # Check whether metadata needs to be updated.
+
+        if flag != mdflag:
+            nupdated += 1
+            print('Setting loc.scratch to %d for file %s' % (flag, f))
+            md_update = {'loc.scratch': flag}
+            modifyFileMetadata(samweb, f, md_update)
 
     # Done.
 
-    return flag
+    return
 
 
 # Main procedure.
@@ -233,12 +274,23 @@ def main(argv):
         nupdated0 = nupdated
         niter -= 1
         files = samweb.listFiles(dimensions=dim)
-        if len(files) == 0:
-            print('No more files.')
-            break
-        nqueried += len(files)
+
+        # Group files into groups of 20.
+
+        fgroup = []
         for f in files:
-            check_file(samweb, f)
+            nqueried += 1
+            fgroup.append(f)
+            if len(fgroup) >= 20:
+                check_files(samweb, fgroup)
+                fgroup = []
+
+        if len(fgroup) > 0:
+            check_files(samweb, fgroup)
+
+    # Flush metadata.
+
+    flushMetadata(samweb)
 
     # Print statistical summary.
 
