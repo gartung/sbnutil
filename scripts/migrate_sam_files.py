@@ -210,6 +210,7 @@ def check_metadata(samweb1, samweb2, experiment, f):
 
 
 # Check file locations.
+# Return True if location check was successful, False otherwise.
 
 def check_locations(samweb1, samweb2, f):
 
@@ -233,8 +234,8 @@ def check_locations(samweb1, samweb2, f):
 
     if not locs2_ok:
         print('Unable to check locations for file %s' % f)
-        print('File man not be declared.')
-        return
+        print('File may not be declared.')
+        return False
 
     for loc1 in locs1:
         fp1 = loc1['full_path']
@@ -260,7 +261,7 @@ def check_locations(samweb1, samweb2, f):
 
     # Done.
 
-    return
+    return True
 
 
 # Check file metadata and locations.
@@ -271,14 +272,14 @@ def check_file(samweb1, samweb2, experiment, f):
 
     migrate = check_metadata(samweb1, samweb2, experiment, f)
     if migrate != 0:
-        check_locations(samweb1, samweb2, f)
+        if check_locations(samweb1, samweb2, f):
 
-        # Update parameter sbn.migrate to be 0 in source database.
+            # Update parameter sbn.migrate to be 0 in source database.
 
-        print('Setting parameter sbn.migrate to 0 in source database')
-        md_update = {'sbn.migrate': 0}
-        samweb1.modifyFileMetadata(f, md_update)
-        nmigrated += 1
+            print('Setting parameter sbn.migrate to 0 in source database')
+            md_update = {'sbn.migrate': 0}
+            samweb1.modifyFileMetadata(f, md_update)
+            nmigrated += 1
 
 
 # Main procedure.
