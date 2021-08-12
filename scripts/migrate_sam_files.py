@@ -160,7 +160,7 @@ def check_metadata(samweb1, samweb2, experiment, f):
 
             if parents_ok:
                 pfname = parent['file_name']
-                check_file(samweb1, samweb2, experiment, pfname)
+                parents_ok = check_file(samweb1, samweb2, experiment, pfname)
 
     # Quit if this file has any retired parents.
 
@@ -265,14 +265,18 @@ def check_locations(samweb1, samweb2, f):
 
 
 # Check file metadata and locations.
+# Return True of metadata + locatio check was successful, False otherwise.
 
 def check_file(samweb1, samweb2, experiment, f):
 
     global nmigrated
 
+    ok = True
+
     migrate = check_metadata(samweb1, samweb2, experiment, f)
     if migrate != 0:
-        if check_locations(samweb1, samweb2, f):
+        ok = check_locations(samweb1, samweb2, f)
+        if ok:
 
             # Update parameter sbn.migrate to be 0 in source database.
 
@@ -280,6 +284,10 @@ def check_file(samweb1, samweb2, experiment, f):
             md_update = {'sbn.migrate': 0}
             samweb1.modifyFileMetadata(f, md_update)
             nmigrated += 1
+
+    # Done.
+
+    return ok
 
 
 # Main procedure.
