@@ -32,6 +32,13 @@
 #
 # 3.  The maximum number of files migrated is <n>*<niter>.
 #
+# 4.  This script checks and updates parameter sbn.migrate in the source database.
+#     The meaning of sbn.migrate is as follows.
+#
+#     0 - File has been migrated successfully (no further checking needed).
+#     1 - File should be checked.
+#     
+#
 ########################################################################
 #
 # Created: 9-Aug-2021  H. Greenlee
@@ -134,6 +141,7 @@ def check_metadata(samweb1, samweb2, experiment, f):
 
     # Check parents.
 
+    parents_ok = True
     if 'parents' in md1:
         for parent in md1['parents']:
 
@@ -142,9 +150,22 @@ def check_metadata(samweb1, samweb2, experiment, f):
             if 'file_id' in parent:
                 del parent['file_id']
 
-            pfname = parent['file_name']
-            check_file(samweb1, samweb2, experiment, pfname)
+            # Check whether this parent is retired.
+            # Samweb can not declare the child of a retired parent.
 
+            if 'retired' in parent and parent['retired']:
+                parents_ok = False
+
+            # Make sure parent is declared in target database.
+
+            if parents_ok:
+                pfname = parent['file_name']
+                check_file(samweb1, samweb2, experiment, pfname)
+
+    # Quit if this file has any retired parents.
+
+    if not parents_ok:
+        return migrate
 
     # At this point, we think that we need to add or update metadata for file f in 
     # the target database.
@@ -183,6 +204,8 @@ def check_metadata(samweb1, samweb2, experiment, f):
     else:
         print('Metadata for file %s in target database is already up to date.' % f)
 
+    # Done.
+
     return migrate
 
 
@@ -194,7 +217,25 @@ def check_locations(samweb1, samweb2, f):
 
     print('Checking locations for file %s' % f)
     locs1 = samweb1.locateFile(f)
-    locs2 = samweb2.locateFile(f)
+    locs2_ok = False
+    locs2 = []
+    try:
+        locs2 = samweb2.locateFile(f)
+        locs2_ok = True
+    except:
+        locs2 = []
+        locs2_ok = False
+
+    # If locate-file failed in target database, that means that this file has not been
+    # declared in the target database.
+    # There are use cases where this can happen.
+    # In these case, print an error message and quite.
+
+    if not locs2_ok:
+        print('Unable to check locations for file %s' % f)
+        print('File man not be declared.')
+        return
+
     for loc1 in locs1:
         fp1 = loc1['full_path']
         if fp1.find('/scratch/') > 0:
@@ -216,6 +257,8 @@ def check_locations(samweb1, samweb2, f):
                 print('Adding location in target database.')
                 samweb2.addFileLocation(f, loc1['location'])
                 nlocations += 1
+
+    # Done.
 
     return
 
