@@ -18,6 +18,8 @@
 # --file <filename>     - File name (optional, default none).
 # --niter <niter>       - Number of iterations (default 1).
 # --nolabel             - Check all files with locations, but no tape label.
+# --invalid_disk <file> - Save files sith invalid persistent disk locations in specified file.
+# --invalid_tape <file> - Save files sith invalid tape locations in specified file.
 #
 # Usage notes:
 #
@@ -170,7 +172,7 @@ def check_location(samweb, f, loc, remove=False):
 
 # Check scratch locations for file.
 
-def check_files(samweb, fgroup):
+def check_files(samweb, fgroup, invalid_disk_file, invalid_tape_file):
 
     global ntape_valid
     global ntape_invalid
@@ -201,12 +203,17 @@ def check_files(samweb, fgroup):
 
             locloc = loc['location']
             loctype = loc['location_type']
+            locpath = loc['full_path'].split(':')[-1]
             if loctype == 'tape':
                 valid = check_location(samweb, f, loc, False)
                 if valid:
                     ntape_valid += 1
                 else:
                     ntape_invalid += 1
+                    if invalid_tape_file != '':
+                        fl = open(invalid_tape_file, 'a')
+                        fl.write('%s/%s\n' % (locpath, f))
+                        fl.close()
             else:
                 if locloc.find('/scratch/') > 0 and locloc.find(':/pnfs/') > 0:
                     valid = check_location(samweb, f, loc, True)
@@ -221,6 +228,10 @@ def check_files(samweb, fgroup):
                         npersistent_valid += 1
                     else:
                         npersistent_invalid += 1
+                        if invalid_disk_file != '':
+                            fl = open(invalid_disk_file, 'a')
+                            fl.write('%s/%s\n' % (locpath, f))
+                            fl.close()
 
         # Maybe update parameter loc.scratch.
 
@@ -263,6 +274,8 @@ def main(argv):
     filename = ''
     niter = 1
     nolabel = 0
+    invalid_disk_file = ''
+    invalid_tape_file = ''
     if 'SAM_EXPERIMENT' in os.environ:
         experiment = os.environ['SAM_EXPERIMENT']
 
@@ -289,9 +302,20 @@ def main(argv):
         elif args[0] == '--nolabel':
             nolabel = 1
             del args[0]
+        elif args[0] == '--invalid_disk' and len(args) > 1:
+            invalid_disk_file = args[1]
+            del args[0:2]
+        elif args[0] == '--invalid_tape' and len(args) > 1:
+            invalid_tape_file = args[1]
+            del args[0:2]
         else:
             print('Unknown option %s' % args[0])
             sys.exit(1)
+
+    if invalid_disk_file != '' and os.path.exists(invalid_disk_file):
+        os.remove(invalid_disk_file)
+    if invalid_tape_file != '' and os.path.exists(invalid_tape_file):
+        os.remove(invalid_tape_file)
 
     # Prepare sam query.
 
@@ -328,11 +352,11 @@ def main(argv):
             nqueried += 1
             fgroup.append(f)
             if len(fgroup) >= 20:
-                check_files(samweb, fgroup)
+                check_files(samweb, fgroup, invalid_disk_file, invalid_tape_file)
                 fgroup = []
 
         if len(fgroup) > 0:
-            check_files(samweb, fgroup)
+            check_files(samweb, fgroup, invalid_disk_file, invalid_tape_file)
 
     # Flush metadata.
 
