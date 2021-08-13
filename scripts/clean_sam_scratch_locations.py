@@ -17,6 +17,7 @@
 # --def <defname>       - Parent definition (optional, default none).
 # --file <filename>     - File name (optional, default none).
 # --niter <niter>       - Number of iterations (default 1).
+# --nolabel             - Check all files with locations, but no tape label.
 #
 # Usage notes:
 #
@@ -39,6 +40,10 @@
 #     0 - File does not have a scratch location.
 #     1 - File has a valid scratch location (file still exists).
 #
+# 6.  By default, files that do not have parameter loc.scratch equal to 0 are 
+#     queried (sam dimension "minus loc.scratch 0").  If option --nolabel is
+#     specified, instead use sam dimension "minus tape_label %".
+#
 ########################################################################
 #
 # Created: 10-Aug-2021  H. Greenlee
@@ -52,8 +57,13 @@ import samweb_cli
 # Statistics.
 
 nqueried = 0
+ntape_valid = 0
+ntape_invalid = 0
+npersistent_valid = 0
+npersistent_invalid = 0
+nscratch_valid = 0
+nscratch_invalid = 0
 nremoved = 0
-nscratch = 0
 nupdated = 0
 
 # Global metadata queue (list of metadata dictionaries, including file name).
@@ -124,8 +134,9 @@ def modifyFileMetadata(samweb, f, md):
 
 # Check a particular location for a file.
 # Returns true if the locations is valid, false if not.
+# Optionally remove invalid locations.
 
-def check_location(samweb, f, loc):
+def check_location(samweb, f, loc, remove=False):
 
     global nremoved
 
@@ -145,9 +156,10 @@ def check_location(samweb, f, loc):
     # Remove invalid locations.
 
     if not valid:
-        nremoved += 1
-        print('Removing bad location %s' % fp)
-        samweb.removeFileLocation(f, loc['location'])
+        if remove:
+            nremoved += 1
+            print('Removing bad location %s' % fp)
+            samweb.removeFileLocation(f, loc['location'])
     else:
         print('Location is valid')
 
@@ -160,7 +172,12 @@ def check_location(samweb, f, loc):
 
 def check_files(samweb, fgroup):
 
-    global nscratch
+    global ntape_valid
+    global ntape_invalid
+    global npersistent_valid
+    global npersistent_invalid
+    global nscratch_valid
+    global nscratch_invalid
     global nupdated
 
     # Get metadata and locations.
@@ -183,11 +200,27 @@ def check_files(samweb, fgroup):
             # Is this a scratch location?
 
             locloc = loc['location']
-            if locloc.find('/scratch/') > 0 and locloc.find(':/pnfs/') > 0:
-                valid = check_location(samweb, f, loc)
+            loctype = loc['location_type']
+            if loctype == 'tape':
+                valid = check_location(samweb, f, loc, False)
                 if valid:
-                    nscratch += 1
-                    flag = 1
+                    ntape_valid += 1
+                else:
+                    ntape_invalid += 1
+            else:
+                if locloc.find('/scratch/') > 0 and locloc.find(':/pnfs/') > 0:
+                    valid = check_location(samweb, f, loc, True)
+                    if valid:
+                        nscratch_valid += 1
+                        flag = 1
+                    else:
+                        nscratch_invalid += 1
+                else:
+                    valid = check_location(samweb, f, loc, False)
+                    if valid:
+                        npersistent_valid += 1
+                    else:
+                        npersistent_invalid += 1
 
         # Maybe update parameter loc.scratch.
 
@@ -213,8 +246,13 @@ def check_files(samweb, fgroup):
 def main(argv):
 
     global nqueried
+    global ntape_valid
+    global ntape_invalid
+    global npersistent_valid
+    global npersistent_invalid
+    global nscratch_valid
+    global nscratch_invalid
     global nremoved
-    global nscratch
     global nupdated
 
     # Parse arguments.
@@ -224,6 +262,7 @@ def main(argv):
     defname = ''
     filename = ''
     niter = 1
+    nolabel = 0
     if 'SAM_EXPERIMENT' in os.environ:
         experiment = os.environ['SAM_EXPERIMENT']
 
@@ -247,6 +286,9 @@ def main(argv):
         elif args[0] == '--niter' and len(args) > 1:
             niter = int(args[1])
             del args[0:2]
+        elif args[0] == '--nolabel':
+            nolabel = 1
+            del args[0]
         else:
             print('Unknown option %s' % args[0])
             sys.exit(1)
@@ -261,7 +303,11 @@ def main(argv):
         dim = 'defname: %s' % defname
     else:
         dim = 'file_id > 0'
-    dim += ' minus loc.scratch 0 with availability physical,anystatus'
+    if nolabel:
+        dim += ' minus tape_label %'
+    else:
+        dim += ' minus loc.scratch 0'
+    dim += ' with availability physical,anystatus'
     if nfiles > 0:
         dim += ' with limit %d' % nfiles
 
@@ -295,8 +341,13 @@ def main(argv):
     # Print statistical summary.
 
     print('\n%d files queried.' % nqueried)
-    print('%d locations removed.' % nremoved)
-    print('%d valid scratch locations.' % nscratch)
+    print('\n%d files with valid tape locations seen.' % ntape_valid)
+    print('%d files with valid persistent disk locations seen.' % npersistent_valid)
+    print('%d files with valid scratch disk locations seen.' % nscratch_valid)
+    print('\n%d files with invalid tape locations seen.' % ntape_invalid)
+    print('%d files with invalid persistent disk locations seen.' % npersistent_invalid)
+    print('%d files with invalid scratch disk locations seen.' % nscratch_invalid)
+    print('\n%d locations removed.' % nremoved)
     print('%d files updated metadata.' % nupdated)
 
     # Done
