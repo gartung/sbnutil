@@ -18,6 +18,7 @@
 # --def <defname>       - Parent definition (optional, default none).
 # --file <filename>     - File name (optional, default none).
 # --niter <niter>       - Number of iterations (default 1).
+# --invalid <file>      - Save unmigrated files in specified file.
 #
 # Usage notes:
 #
@@ -90,7 +91,7 @@ def print_metadata(f, md):
 #
 # Returns the original value of sbn.migrate in the source database (0, 1, or None).
 
-def check_metadata(samweb1, samweb2, experiment, f):
+def check_metadata(samweb1, samweb2, experiment, f, invalid_file):
 
     global ndeclared
     global nmodified
@@ -160,7 +161,7 @@ def check_metadata(samweb1, samweb2, experiment, f):
 
             if parents_ok:
                 pfname = parent['file_name']
-                parents_ok = check_file(samweb1, samweb2, experiment, pfname)
+                parents_ok = check_file(samweb1, samweb2, experiment, pfname, invalid_file)
 
     # Quit if this file has any retired parents.
 
@@ -212,7 +213,7 @@ def check_metadata(samweb1, samweb2, experiment, f):
 # Check file locations.
 # Return True if location check was successful, False otherwise.
 
-def check_locations(samweb1, samweb2, f):
+def check_locations(samweb1, samweb2, f, invalid_file):
 
     global nlocations
 
@@ -235,9 +236,15 @@ def check_locations(samweb1, samweb2, f):
     if not locs2_ok:
         print('Unable to check locations for file %s' % f)
         print('File may not be declared.')
+        if invalid_file != '':
+            fl = open(invalid_file, 'a')
+            fl.write('%s\n' % f)
+            fl.close()
         return False
 
+    has_loc1 = False
     for loc1 in locs1:
+        has_loc1 = True
         fp1 = loc1['full_path']
         if fp1.find('/scratch/') > 0:
             print('Skipping scratch location %s' % fp1)
@@ -259,6 +266,9 @@ def check_locations(samweb1, samweb2, f):
                 samweb2.addFileLocation(f, loc1['location'])
                 nlocations += 1
 
+    if not has_loc1:
+        print('No locations found.')
+
     # Done.
 
     return True
@@ -267,15 +277,15 @@ def check_locations(samweb1, samweb2, f):
 # Check file metadata and locations.
 # Return True of metadata + locatio check was successful, False otherwise.
 
-def check_file(samweb1, samweb2, experiment, f):
+def check_file(samweb1, samweb2, experiment, f, invalid_file):
 
     global nmigrated
 
     ok = True
 
-    migrate = check_metadata(samweb1, samweb2, experiment, f)
+    migrate = check_metadata(samweb1, samweb2, experiment, f, invalid_file)
     if migrate != 0:
-        ok = check_locations(samweb1, samweb2, f)
+        ok = check_locations(samweb1, samweb2, f, invalid_file)
         if ok:
 
             # Update parameter sbn.migrate to be 0 in source database.
@@ -307,6 +317,7 @@ def main(argv):
     defname = ''
     filename = ''
     niter = 1
+    invalid_file = ''
     if 'SAM_EXPERIMENT' in os.environ:
         experiment = os.environ['SAM_EXPERIMENT']
 
@@ -330,9 +341,15 @@ def main(argv):
         elif args[0] == '--niter' and len(args) > 1:
             niter = int(args[1])
             del args[0:2]
+        elif args[0] == '--invalid' and len(args) > 1:
+            invalid_file = args[1]
+            del args[0:2]
         else:
             print('Unknown option %s' % args[0])
             sys.exit(1)
+
+    if invalid_file != '' and os.path.exists(invalid_file):
+        os.remove(invalid_file)
 
     # Prepare sam query.
 
@@ -359,7 +376,7 @@ def main(argv):
             break
         nqueried += len(files)
         for f in files:
-            check_file(samweb1, samweb2, experiment, f)
+            check_file(samweb1, samweb2, experiment, f, invalid_file)
 
     # Print statistical summary.
 
