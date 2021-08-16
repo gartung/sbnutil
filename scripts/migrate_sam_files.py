@@ -38,6 +38,7 @@
 #
 #     0 - File has been migrated successfully (no further checking needed).
 #     1 - File should be checked.
+#     2 - Error.  File can not be migrated because of invalid metadata.
 #     
 #
 ########################################################################
@@ -362,7 +363,7 @@ def main(argv):
         dim = 'defname: %s' % defname
     else:
         dim = 'file_id > 0'
-    dim += ' minus sbn.migrate 0 with availability anylocation,anystatus'
+    dim += ' minus sbn.migrate 0,2 with availability anylocation,anystatus'
     if nfiles > 0:
         dim += ' with limit %d' % nfiles
 
