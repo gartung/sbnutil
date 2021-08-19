@@ -59,6 +59,10 @@ nmodified = 0
 nlocations = 0
 nmigrated = 0
 
+# Source database metadata queue (list of metadata dictionaries, including file name).
+
+queued_metadata1 = []
+
 # Help function.
 
 def help():
@@ -78,6 +82,47 @@ def help():
                 print(line[2:], end='')
             else:
                 print()
+
+
+# Function to flush metadata queue.
+
+def flushMetadata(samweb):
+
+    global queued_metadata1
+
+    if len(queued_metadata1) > 0:
+        for md in queued_metadata1:
+            print('Updating metadata for file %s' % md['file_name'])
+        samweb.modifyMetadata(queued_metadata1)
+    queued_metadata1 = []
+
+    # Done.
+
+    return
+
+
+# Function to update metadata of one file.
+
+def modifyFileMetadata(samweb, f, md):
+
+    global queued_metadata1
+
+    # Add file name to metadata.
+
+    md['file_name'] = f
+
+    # Add metadata to queue.
+
+    queued_metadata1.append(md)
+
+    # Maybe flush queue.
+
+    if len(queued_metadata1) > 21:
+        flushMetadata(samweb)
+
+    # Done.
+
+    return
 
 
 # Print metadata.
@@ -293,7 +338,7 @@ def check_file(samweb1, samweb2, experiment, f, invalid_file):
 
             print('Setting parameter sbn.migrate to 0 in source database')
             md_update = {'sbn.migrate': 0}
-            samweb1.modifyFileMetadata(f, md_update)
+            modifyFileMetadata(samweb1, f, md_update)
             nmigrated += 1
 
     # Done.
@@ -378,6 +423,10 @@ def main(argv):
         nqueried += len(files)
         for f in files:
             check_file(samweb1, samweb2, experiment, f, invalid_file)
+
+    # Flush metadata.
+
+    flushMetadata(samweb1)
 
     # Print statistical summary.
 
