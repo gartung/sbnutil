@@ -166,18 +166,11 @@ def main(argv):
         for grid in grids1:
             if not grid in grids2:
                 print('Adding grid subject %s for user %s' % (grid, user))
-                if not update_grid:
-                    update_grid = True
-                    print('Updating grids for user %s' % user)
-                grid_ok = False
                 try:
                     samweb2.modifyUser(user, addgridsubject=grid)
-                    grid_ok = True
+                    update_grid = True
                 except:
-                    grid_ok = False
-                if not grid_ok:
                     print('Failed to update grid subject %s for user %s' % (grid, user))
-                    
 
         if len(add_groups) > 0 or update_grid:
             nusers_updated += 1
