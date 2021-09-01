@@ -67,8 +67,9 @@ def get_samweb():
 
 # Check the validity of a single parent.
 # Return value is a guaranteed valid list of parents (may be empty list)
+# Fcl list also updated to include fcls associated with virtual parents.
 
-def check_parent(parent, dir):
+def check_parent(parent, dir, fcllist):
 
     result = []
 
@@ -85,6 +86,7 @@ def check_parent(parent, dir):
     if has_metadata:
 
         # If this parent has metadata, return this one file in the form of a list.
+        # Don't add anything to fcl list.
 
         result = [parent]
 
@@ -97,11 +99,16 @@ def check_parent(parent, dir):
 
             # Found local file.  Extract parent information from file.
 
-           md = get_metadata(local_file)
+            md = get_metadata(local_file)
 
-           if 'parents' in md:
-               for prnt in md['parents']:
-                   result.extend(check_parent(prnt, dir))
+            if 'parents' in md:
+                for prnt in md['parents']:
+                    result.extend(check_parent(prnt, dir, fcllist))
+
+            # Append fcl file to front of fcl list.
+
+            if 'fcl.name' in md and not md['fcl.name'] in fcllist:
+                fcllist.insert(1, md['fcl.name'])
 
         else:
 
@@ -130,12 +137,12 @@ def validate_parents(md, dir):
     if 'parents' in md:
         parents = md['parents']
         new_parents = []
+        fcllist = []
         for parent in parents:
-            new_parents.extend(check_parent(parent, dir))
-
+            new_parents.extend(check_parent(parent, dir, fcllist))
         if len(new_parents) == 0:
 
-            # If updated parent list isempty, delete 'parents' from metadata.
+            # If updated parent list is empty, delete 'parents' from metadata.
 
             del md['parents']
 
@@ -144,6 +151,13 @@ def validate_parents(md, dir):
             # Insert updated parent list into metadata.
 
             md['parents'] = new_parents
+
+        # Maybe update fcl.name parameter.
+
+        if len(fcllist) > 0:
+            if 'fcl.name' in md and not md['fcl.name'] in fcllist:
+                fcllist.append(md['fcl.name'])
+            md['fcl.name'] = '/'.join(fcllist)
 
     # Done.
 
