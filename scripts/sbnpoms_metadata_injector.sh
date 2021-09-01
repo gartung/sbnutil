@@ -284,14 +284,15 @@ echo "services.FileCatalogMetadataSBN.ProductionName: \"$MDPRODUCTIONNAME\"" >> 
 echo "services.FileCatalogMetadataSBN.ProductionType: \"$MDPRODUCTIONTYPE\"" >> $INPUTFCLNAME
 #only include the TFile metadata json production if the name of the json has been specified
 if [ "$TFILEMDJSONNAME" ]; then
-  echo "services.MetadataSBN: @local::art_file_catalog_tfile" >> $INPUTFCLNAME
+  #echo "services.MetadataSBN: @local::art_file_catalog_tfile" >> $INPUTFCLNAME
   echo "services.MetadataSBN.JSONFileName: \"$TFILEMDJSONNAME\"" >> $INPUTFCLNAME
-  echo "services.MetadataSBN.GenerateTFileMetadata: true" >> $INPUTFCLNAME
-fi
-# If we want to make caf files in production, lets set the output name here also
-if [ "$CAFNAME" ]
-then
-  echo "physics.producers.mycafmaker.CAFFilename: \"$CAFNAME\"" >> $INPUTFCLNAME
-  echo "services.MetadataSBN.dataTier: \"cafana\"" >> $INPUTFCLNAME
   echo "services.MetadataSBN.fileFormat: \"root\"" >> $INPUTFCLNAME
+  # If we want to make caf files in production, lets set the output name here also
+  if [ "$CAFNAME" ]
+  then
+    echo "physics.producers.mycafmaker.CAFFilename: \"$CAFNAME\"" >> $INPUTFCLNAME
+    echo "services.MetadataSBN.dataTier: \"cafana\"" >> $INPUTFCLNAME
+  else
+    echo "services.MetadataSBN.dataTier: \"root-tuple\"" >> $INPUTFCLNAME    
+  fi
 fi
