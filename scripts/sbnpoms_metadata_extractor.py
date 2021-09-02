@@ -69,9 +69,25 @@ def get_samweb():
 # Return value is a guaranteed valid list of parents (may be empty list)
 # Fcl list also updated to include fcls associated with virtual parents.
 
-def check_parent(parent, dir, fcllist):
+def check_parent(parentarg, dir, fcllist):
 
     result = []
+
+    # Parent arg can be passed in different ways depending on the source.
+
+    parent = ''
+    if type(parentarg) == type(''):
+        parent = parentarg
+    elif type(parentarg) == type(b''):
+        parent = parentarg.decode('utf8')
+    elif type(parentarg) == type({}):
+        if 'file_name' in parentarg:
+            parent = parentarg['file_name']
+        elif 'file_id' in parentarg:
+            parent = parentarg['file_id']
+    if parent == '' or type(parent) != type(''):
+        raise FileNotFoundError
+
 
     # Check whether this parent file has metadata already.
 
@@ -170,61 +186,79 @@ def get_metadata(artroot):
 
     # Run sam_metadata_dumper.
 
+    md = {}
     cmd = ['sam_metadata_dumper', artroot]
     proc = subprocess.run(cmd, capture_output=True, encoding='utf8')
-    if proc.returncode != 0:
-        print('sam_metadata_dumper returned status %d' % proc.returncode)
-        sys.exit(proc.returncode)
+    if proc.returncode == 0:
 
-    # Parse json output into python dictionary.
+        # Sam_metadata_dumper succeeded.
+        # Parse json output into python dictionary.
 
-    md = json.loads(proc.stdout)
+        md0 = json.loads(proc.stdout)
 
-    # Here is where we do any desired udpates on metadata.
+        # Loop over one key to extract file name.
 
-    mdnew = {}
+        for k in md0:
+            md = md0[k]
+            md['file_name'] = k
+            break
 
-    # Loop over one key to extract file name.
+    else:
 
-    for k in md:
-        mdnew = md[k]
-        mdnew['file_name'] = k
-        break
+        # Sam_metadata_dumper failed.
+        # Try to read metadata for corrsponding json file.
 
-    # Add file size.
+        jsonfile = '%s.json' % artroot
+        if os.path.exists(jsonfile):
+            f = open(jsonfile)
+            md = json.load(f)
+        else:
+            print('sam_metadata_dumper returned status %d' % proc.returncode)
+            print('No corresponding json file found, giving up.')
+            sys.exit(proc.returncode)
 
-    stat = os.stat(artroot)
-    mdnew['file_size'] = stat.st_size
+    # Do metadata checks and updates here.
+    # Make sure metadata contains file name.
 
-    # Convert application family/name/version into its own dictionary
+    if not 'file_name' in md:
+        md['file_name'] = os.path.basename(artroot)
+            
+    # Make sure metadata contains file size.
 
-    mdnew['application'] = {}
-    if 'application.family' in mdnew:
-        mdnew['application']['family'] = mdnew['application.family']
-        del mdnew['application.family']
-    if 'art.process_name' in mdnew:
-        mdnew['application']['name'] = mdnew['art.process_name']
-    if 'application.version' in mdnew:
-        mdnew['application']['version'] = mdnew['application.version']
-        del mdnew['application.version']
+    if not 'file_size' in md and os.path.exists(artroot):
+        stat = os.stat(artroot)
+        md['file_size'] = stat.st_size
+
+    # Make sure application family/name/version is its own dictionary
+
+    if not 'application' in md:
+        md['application'] = {}
+        if 'application.family' in md:
+            md['application']['family'] = md['application.family']
+            del md['application.family']
+        if 'art.process_name' in md:
+            md['application']['name'] = md['art.process_name']
+        if 'application.version' in md:
+            md['application']['version'] = md['application.version']
+            del md['application.version']
 
     # Handle first/last event.
 
-    if 'art.first_event' in mdnew:
-        mdnew['first_event'] = mdnew['art.first_event'][2]
-        del mdnew['art.first_event']
-    if 'art.last_event' in mdnew:
-        mdnew['last_event'] = mdnew['art.last_event'][2]
-        del mdnew['art.last_event']
+    if 'art.first_event' in md:
+        md['first_event'] = md['art.first_event'][2]
+        del md['art.first_event']
+    if 'art.last_event' in md:
+        md['last_event'] = md['art.last_event'][2]
+        del md['art.last_event']
 
     # Ignore 'art.run_type' (run_type is also contained in 'runs' metadata).
 
-    if 'art.run_type' in mdnew:
-        del mdnew['art.run_type']
+    if 'art.run_type' in md:
+        del md['art.run_type']
 
     # Done.
 
-    return mdnew
+    return md
 
 
 # Main procedure.
@@ -268,8 +302,8 @@ def main(argv):
         print('No artroot file specified.')
         sys.exit(1)
 
-    if not os.path.exists(artroot):
-        print('Artroot file %s does not exist.' % artroot)
+    if not os.path.exists(artroot) and not os.path.exists('%s.json' % artroot):
+        print('Artroot file %s does not exist and there is no corresponding json file.' % artroot)
         sys.exit(1)
 
     # Extract metadata as python dictionary.
@@ -281,9 +315,10 @@ def main(argv):
     dir = os.path.dirname(os.path.abspath(artroot))
     validate_parents(md, dir)
 
-    # Print metadata as pretty json string.
+    # Pretty print json metadata.
 
-    json.dump(md, sys.stdout, sort_keys=True, indent=2)    
+    json.dump(md, sys.stdout, sort_keys=True, indent=2)
+    print()   # Json dump misses final newline.
 
     # Done
 
