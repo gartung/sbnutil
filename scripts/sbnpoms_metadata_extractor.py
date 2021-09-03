@@ -1,18 +1,20 @@
 #! /usr/bin/env python
 ########################################################################
 #
-# Name: metadata_estractor.py
+# Name: sbnoms_metadata_extractor.py
 #
-# Purpose: Metadata extractor for artroot files, based on sam_metadata_dumper.
-#          Metadata is output to standard output in json format.
+# Purpose: SAM metadata extractor for artroot and non-artroot files.
+#          Use sam_metadata_dumper to extract internal sam metadata from
+#          artroot files.  Otherwise, read metadata from associated .json
+#          file.  Json format metadata written to standard output.
 #
 # Usage:
 #
-# sbnpoms_metadata_extractor.py [options] <artroot-file>
+# sbnpoms_metadata_extractor.py [options] <file>
 #
 # Arguments:
 #
-# <artroot-file> - Path of artroot file.
+# <file> - Path of file.
 #
 # Options:
 #
@@ -111,7 +113,7 @@ def check_parent(parentarg, dir, fcllist):
         # If this parent doesn't have metadata, try to locate file.
 
         local_file = os.path.join(dir, parent)
-        if os.path.exists(local_file):
+        if os.path.exists(local_file) or os.path.exists('%s.json' % local_file):
 
             # Found local file.  Extract parent information from file.
 
@@ -130,6 +132,7 @@ def check_parent(parentarg, dir, fcllist):
 
             # Couldn't find file.  Raise exception.
 
+            print('Couldn\'t find file %s' % local_file)
             raise FileNotFoundError
 
     # Done.
