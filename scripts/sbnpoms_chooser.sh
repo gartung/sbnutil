@@ -10,24 +10,41 @@
 #
 # Options:
 #
-# -h|--help      - Print help message.
-# -S <file-list> - Specify file to receive chosen files (default none).
-# -d <directory> - Specify directory to search for root files (default ".").
-# -n <n>         - Number of artroot files to choose (default 1).
-# --metadata     - Extract metadata (using sbnpoms_metadata_extractor.py) 
-#                  for any artroot file in the input directory into a matching 
-#                  .json file, provided .json file doesn't already exist.
-# --delete       - Delete non-chosen artroot files in input directory.
-# --match        - Match unpaired non-artroot root files and unpaired json files.  
-#                  Rename json file to match root file.
+# -h|--help       - Print help message.
+# -S <list>       - Specify list file to receive chosen files (default none).
+# -d <directory>  - Specify directory to search for root files (default ".").
+# -n <n>          - Number of artroot files to choose (default 1).
+# --metadata      - Extract metadata (using sbnpoms_metadata_extractor.py) 
+#                   for any artroot file in the input directory into a matching 
+#                   .json file, if the .json file doesn't already exist.
+# --delete <list> - Delete in the specified list file.
+# --match         - Match unpaired non-artroot root files and unpaired json files.  
+#                   Rename json file to match root file.
 #
 #======================================================================
 #
 # Usage notes.
 #
-# 1.  Choose artroot files based on newest first.
+# 1.  Actions are performed in the following order:
+#     a) Metadata extraction for artroot files (--metadata option).
+#     b) Delete specified files (--delete option).
+#     c) Match json and plain root files (--match option).
+#     d) Select artroot files for next stage (-S option).
 #
-# 2.  Match non-artroot root files and json files based on newest vs. newest.
+# 2.  The recommended way to invoke this script is with all four action
+#     options following each batch job executable.
+#
+#     # sbnpoms_chooser.sh -S input.list --delete input.list --metadata --match
+#
+#     Note the following.
+#
+#     a) Input list (-S option) and delete list (--delete option) can be the
+#        same file.
+#     b) Always specify option --metadata if you use option --delete, unless you
+#        don't care about metadata (otherwise metadata extraction will fail).
+#     b) Input list (-S) may be omitted following last batch executable.
+#     c) Match option (--match) may be omitted if no plain root files are being
+#        generated.
 #
 # Created: 2-Sep-2021  H. Greenlee
 #
@@ -43,7 +60,7 @@ function show_help {
 inputdir='.'
 inputlist=''
 n=1
-delete=0
+deletelist=''
 metadata=0
 match=0
 
@@ -80,7 +97,10 @@ while [ $# -gt 0 ]; do
       ;;
 	    
     --delete)
-      delete=1
+      if [ $# -gt 1 ]; then
+        deletelist="$2"
+        shift
+      fi
       ;;
 	    
     --match)
@@ -100,27 +120,52 @@ if [ ! -d $inputdir ]; then
   exit 1
 fi
 
-# Make sure $inputlist exists, and is empty, if specified.
+# Do artroot metadata extraction (--metadata option).
+# This needs to be done before deleting any .root files.
 
-if [ x$inputlist != x ]; then
-  rm -f $inputlist
-  touch $inputlist
+if [ $metadata -ne 0 ]; then
+  while read root; do
+    if [ x${root: -5} = x.root ]; then
+      json=${root}.json
+      if isartroot.py $inputdir/$root; then
+
+        # This is an artroot file.
+        # Check whether we should extract metadata for this artroot file.
+
+        if [ ! -f $inputdir/$json ]; then
+          echo "Generating metadata for ${root}."
+          sbnpoms_metadata_extractor.py $inputdir/$root > $inputdir/$json
+        fi
+      fi
+    fi
+  done < <(ls -t1 $inputdir )
 fi
 
-# Arrays used by matching function.
+# Perform delete action.
+# This needs to be done before generating input list, which may overwrite delete list.
+
+if [ x$deletelist != x ]; then
+  if [ -f $deletelist ]; then
+    while read f; do
+      echo "Deleting $f"
+      rm -f $f
+    done < $deletelist
+  else
+    echo "Delete list $deletelist does not exist."
+  fi
+fi
+
+# Do matching function.
 
 declare -a unmatched_json
 declare -a unmatched_root
-
-# Maybe fill array of unmatched json files (newest first).
-# Do this before generating any json files in this script, obviously.
-
 if [ $match -ne 0 ]; then
 
+  # Identify unmatched json files in input dirctory.
   # Loop over json files in input directory, newest first.
 
   while read json; do
-    if [ ${json: -5} = ".json" ]; then
+    if [ x${json: -5} = x.json ]; then
 
       # Ignore any json file that contains a line like "file_format": "artroot"
 
@@ -138,68 +183,28 @@ if [ $match -ne 0 ]; then
       fi
     fi
   done < <(ls -t1 $inputdir )
-fi
 
-# Loop over root files in input directory, newest first.
+  # Identify ummatched plain root files.
+  # Loop over root files in input directory, newest first.
 
-while read root; do
-  if [ ${root: -5} = ".root" ]; then
-    json=${root}.json
-    isartroot.py $inputdir/$root
-    stat=$?
-    if [ $stat -eq 0 ]; then
+  while read root; do
+    if [ x${root: -5} = x.root ]; then
+      json=${root}.json
+      if isartroot.py -n $inputdir/$root; then
 
-      # This is an artroot file.
-      # Check whether we should extract metadata for this artroot file.
+        # This is a plain root file.
+        # Maybe add this root file to unmatched plain root array.
 
-      if [ $metadata -ne 0 -a ! -f $inputdir/$json ]; then
-        echo "Generating metadata for ${root}."
-        sbnpoms_metadata_extractor.py $inputdir/$root > $inputdir/$json
-      fi
-
-      if [ $n -gt 0 ]; then
-
-	# Choose this artroot file.
-
-        if [ x$inputlist != x ]; then
-          echo "Adding $inputdir/$root to input list."
-          echo $inputdir/$root >> $inputlist
+        if [ ! -f $inputdir/$json ]; then
+	  echo "Found unmatched plain root file $inputdir/$root"
+          unmatched_root[${#unmatched_root[@]}]=$inputdir/$root
         fi
-      else
-
-        # Delete this unchosen artroot file?
-
-	if [ $delete -ne 0 ]; then
-          echo "Deleting ${root}."
-	  rm -f $inputdir/$root
-        fi
-      fi
-
-      # Decrement choose count.
-
-      n=$(( $n - 1 ))
-
-    elif [ $stat -eq 1 ]; then
-
-      # This is a plain root file.
-      # Maybe add this root file to unmatched plain root array.
-
-      if [ $match -ne 0 -a ! -f $inputdir/$json ]; then
-	echo "Found unmatched plain root file $inputdir/$root"
-        unmatched_root[${#unmatched_root[@]}]=$inputdir/$root
       fi
     fi
-  fi
-done < <(ls -t1 $inputdir )
+  done < <(ls -t1 $inputdir )
 
-if [ x$inputlist != x ]; then
-  ni=`cat $inputlist | wc -l`
-  echo "$ni files added to input list."
-fi
+  # Do actual matching.
 
-# Rest of matching function handled here.
-
-if [ $match -ne 0 ]; then
   nmatch=${#unmatched_root[@]}
   if [ $nmatch -gt ${#unmatched_json[@]} ]; then
     nmatch=${#unmatched_json[@]}
@@ -221,3 +226,37 @@ if [ $match -ne 0 ]; then
   done
 fi
 
+# Do input selection for next stage.
+
+if [ x$inputlist != x -a $n -gt 0 ]; then
+
+  # Make sure $inputlist exists, and is empty.
+
+  rm -f $inputlist
+  touch $inputlist
+
+  # Loop over artroot files in input directory, newest first.
+
+  while read root; do
+    if [ x${root: -5} = x.root ]; then
+      if isartroot.py $inputdir/$root; then
+
+        # This is an artroot file.
+
+        if [ $n -gt 0 ]; then
+
+	  # Add this file to input list.
+
+          echo "Adding $inputdir/$root to input list."
+          echo $inputdir/$root >> $inputlist
+
+          # Decrement choose count.
+
+          n=$(( $n - 1 ))
+        fi
+      fi
+    fi
+  done < <(ls -t1 $inputdir )
+  ni=`cat $inputlist | wc -l`
+  echo "$ni files added to input list."
+fi
