@@ -14,13 +14,15 @@
 # -S <list>        - Specify list file to receive chosen files (default none).
 # -d <directory>   - Specify directory to search for root files (default ".").
 # -n <n>           - Number of artroot files to choose (default 1).
-# --metadata       - Extract metadata (using sbnpoms_metadata_extractor.py) 
+# --[no]metadata   - [Do not] extract metadata (using sbnpoms_metadata_extractor.py) 
 #                    for any artroot file in the input directory into a matching 
 #                    .json file, if the .json file doesn't already exist.
+#                    Default is to extract metadata.
 # --delete <list>  - Delete files in the specified list file.
-# --match          - Match unpaired non-artroot root files and unpaired json files.  
-#                    Rename json file to match root file.
-# --max_length <n> - Maximum file name length (default 200, 0 = no limit)
+# --[no]match      - [Do not] match unpaired non-artroot root files and 
+#                    unpaired json files.  Rename json file to match root file.
+#                    Default is to match.
+# --max_length <n> - Maximum file name length (0=no limit, default 200)
 # --unique         - Ensure that .root file names are unique (rename). 
 #
 #======================================================================
@@ -29,25 +31,30 @@
 #
 # 1.  Actions are performed in the following order:
 #     a) Rename files to ensure unique name (option --unique) or because of 
-#        maximum file name length (option --max_length).
-#     b) Metadata extraction for artroot files (--metadata option).
+#        maximum file name length (option --max_length).  By default, file
+#        names are limited to 200 characters, to be compatible with storing
+#        in enstore.  Unique renaming is not enabled by default.
+#     b) Metadata extraction for artroot files (--metadata option).  Enabled
+#        by default unless invoked with --nometadata.
 #     c) Delete specified files (--delete option).
-#     d) Match json and plain root files (--match option).
+#     d) Match json and plain root files (--match option).  Enabled by default.
 #     e) Clean up external json metadata (add or update file_name, file_size,
-#        and parentage).
+#        and parentage).  This action is always enabled.
 #     f) Select artroot files for next executable (-S option).
 #
-# 2.  The recommended way to invoke this script is with all action
-#     options following each batch job executable.
+# 2.  The recommended way to invoke this script is with mostly default
+#     options following each batch job executable.  Input and delete lists
+#     must be specified using options -S and --delete.
 #
-#     # sbnpoms_chooser.sh -S input.list --delete input.list --metadata --match
+#     # sbnpoms_chooser.sh -S input.list --delete input.list
 #
 #     Note the following.
 #
 #     a) Input list (-S option) and delete list (--delete option) can be the
 #        same file.
-#     b) Always specify option --metadata if you use option --delete, unless you
-#        don't care about metadata (otherwise metadata extraction will fail).
+#     b) Uniquness renaming is not enabled by default.  Add option --unique
+#        if fcl file does not generate unique file names automatically (and
+#        don't plan on overriding unique file names on the command line).
 #
 # Created: 2-Sep-2021  H. Greenlee
 #
@@ -64,8 +71,8 @@ inputdir='.'
 inputlist=''
 n=1
 deletelist=''
-metadata=0
-match=0
+metadata=1
+match=1
 max_length=200
 unique=0
 
@@ -101,6 +108,10 @@ while [ $# -gt 0 ]; do
       metadata=1
       ;;
 	    
+    --nometadata)
+      metadata=0
+      ;;
+	    
     --delete)
       if [ $# -gt 1 ]; then
         deletelist="$2"
@@ -110,6 +121,10 @@ while [ $# -gt 0 ]; do
 	    
     --match)
       match=1
+      ;;
+	    
+    --nomatch)
+      match=0
       ;;
 	    
     --max_length)
