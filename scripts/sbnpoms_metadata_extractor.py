@@ -222,13 +222,14 @@ def get_metadata(artroot):
 
     # Do metadata checks and updates here.
     # Make sure metadata contains file name.
+    # Preexisting file_name in metadata, if any, is ignored.
 
-    if not 'file_name' in md:
-        md['file_name'] = os.path.basename(artroot)
+    md['file_name'] = os.path.basename(artroot)
             
-    # Make sure metadata contains file size.
+    # Make sure metadata contains file size, if we have access to the original file.
+    # Preexisting file_size in metadata, if any, is ignored.
 
-    if not 'file_size' in md and os.path.exists(artroot):
+    if os.path.exists(artroot):
         stat = os.stat(artroot)
         md['file_size'] = stat.st_size
 
