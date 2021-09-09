@@ -32,6 +32,10 @@ import samweb_cli
 
 samweb = None
 experiment = ''
+registered_data_streams = None
+
+data_stream_conversions = {'outBNB': 'bnb',
+                           'outNUMI': 'numi'}
 
 # Help function.
 
@@ -183,6 +187,41 @@ def validate_parents(md, dir):
     return
 
 
+# Validate ane maybe update data_stream metadata.
+
+def validate_data_stream(md):
+
+    global registered_data_streams
+    global data_stream_conversions
+
+    # Don't do anything if metadata doesn't include data_stream.
+
+    if 'data_stream' in md:
+        data_stream = md['data_stream']
+
+        # Make sure registered data streams are initialized.
+
+        if registered_data_streams == None:
+            samweb = get_samweb()
+            registered_data_streams = samweb.listValues('data_streams')
+
+        # Check whether this data_stream is registered.
+
+        if not data_stream in registered_data_streams:
+
+            # Metadata has an unregistered data stream.
+            # Look for a conversion,
+
+            if data_stream in data_stream_conversions:
+                new_data_stream = data_stream_conversions[data_stream]
+                data_stream = new_data_stream
+                md['data_stream'] = new_data_stream
+
+    # Done.
+
+    return
+
+
 # Function to extract metadata as python dictionary.
 
 def get_metadata(artroot):
@@ -254,6 +293,10 @@ def get_metadata(artroot):
     if 'art.last_event' in md:
         md['last_event'] = md['art.last_event'][2]
         del md['art.last_event']
+
+    # Handle data_stream.
+
+    validate_data_stream(md)
 
     # Ignore 'art.run_type' (run_type is also contained in 'runs' metadata).
 
