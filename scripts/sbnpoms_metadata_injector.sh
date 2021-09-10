@@ -290,7 +290,7 @@ if [ "$TFILEMDJSONNAME" ]; then
   # If we want to make caf files in production, lets set the output name here also
   if [ "$CAFNAME" ]
   then
-    echo "physics.producers.mycafmaker.CAFFilename: \"$CAFNAME\"" >> $INPUTFCLNAME
+    echo "physics.producers.cafmaker.CAFFilename: \"$CAFNAME\"" >> $INPUTFCLNAME
     echo "services.MetadataSBN.dataTier: \"cafana\"" >> $INPUTFCLNAME
   else
     echo "services.MetadataSBN.dataTier: \"root-tuple\"" >> $INPUTFCLNAME    
