@@ -74,8 +74,10 @@ def get_samweb():
 # Check the validity of a single parent.
 # Return value is a guaranteed valid list of parents (may be empty list)
 # Fcl list also updated to include fcls associated with virtual parents.
+# Update mc event_count if a parent file contains parameter 
+# mc.generated_event_count.
 
-def check_parent(parentarg, dir, fcllist):
+def check_parent(parentarg, dir, fcllist, mc_event_count):
 
     result = []
 
@@ -99,6 +101,7 @@ def check_parent(parentarg, dir, fcllist):
 
     samweb = get_samweb()
     has_metadata = False
+    mdparent = {}
     try:
         mdparent = samweb.getMetadata(parent)
         has_metadata = True
@@ -111,6 +114,13 @@ def check_parent(parentarg, dir, fcllist):
         # Don't add anything to fcl list.
 
         result = [parent]
+
+        # Maybe update mc event_count.
+
+        if 'mc.generated_event_count' in mdparent:
+            mc_event_count[0] = mdparent['mc.generated_event_count']
+        elif (not 'parents' in mdparent or len(mdparent['parents']) == 0) and 'event_count' in mdparent:
+            mc_event_count[0]  = mdparent['event_count']
 
     else:
 
@@ -131,6 +141,13 @@ def check_parent(parentarg, dir, fcllist):
 
             if 'fcl.name' in md and not md['fcl.name'] in fcllist:
                 fcllist.insert(1, md['fcl.name'])
+
+            # Maybe update mc event_count.
+
+            if 'mc.generated_event_count' in md:
+                mc_event_count[0] = md['mc.generated_event_count']
+            elif (not 'parents' in md or len(md['parents']) == 0) and 'event_count' in md:
+                mc_event_count[0] = md['event_count']
 
         else:
 
@@ -155,14 +172,21 @@ def check_parent(parentarg, dir, fcllist):
 #
 # 3.  If parent is not declared, and there is no local file with the same
 #     name can be found, raise an exception.
+#
+# 4.  If no parents, set parameter mc.generated_event_count equal to 
+#     event_count.
 
 def validate_parents(md, dir):
-    if 'parents' in md:
+    if 'parents' in md and len(md['parents']) > 0:
+
+        # Metadata contains a nonempty list of parents.
+
         parents = md['parents']
         new_parents = []
         fcllist = []
+        mc_event_count = [-1]
         for parent in parents:
-            new_parents.extend(check_parent(parent, dir, fcllist))
+            new_parents.extend(check_parent(parent, dir, fcllist, mc_event_count))
         if len(new_parents) == 0:
 
             # If updated parent list is empty, delete 'parents' from metadata.
@@ -181,6 +205,19 @@ def validate_parents(md, dir):
             if 'fcl.name' in md and not md['fcl.name'] in fcllist:
                 fcllist.append(md['fcl.name'])
             md['fcl.name'] = '/'.join(fcllist)
+
+        # Maybe update mc event_count.
+
+        if mc_event_count[0] >= 0:
+            md['mc.generated_event_count'] = mc_event_count[0]
+
+    else:
+
+        # Metadata parents is missing or empty.
+        # Treat this as a generator job.
+
+        if 'event_count' in md:
+            md['mc.generated_event_count'] = md['event_count']
 
     # Done.
 
