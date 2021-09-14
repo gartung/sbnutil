@@ -214,9 +214,9 @@ def validate_parents(md, dir):
     else:
 
         # Metadata parents is missing or empty.
-        # Treat this as a generator job.
+        # if mc event_count is missing, treat this as a generator job.
 
-        if 'event_count' in md:
+        if not 'mc.generated_event_count' in md and 'event_count' in md:
             md['mc.generated_event_count'] = md['event_count']
 
     # Done.
