@@ -135,7 +135,7 @@ def check_parent(parentarg, dir, fcllist, mc_event_count):
 
             if 'parents' in md:
                 for prnt in md['parents']:
-                    result.extend(check_parent(prnt, dir, fcllist))
+                    result.extend(check_parent(prnt, dir, fcllist, mc_event_count))
 
             # Append fcl file to front of fcl list.
 
