@@ -36,6 +36,7 @@ end_product_list
 table_fragment_begin
 if( echo ${UPS_REQ_QUALIFIERS} | egrep -q '^sbn$|:sbn$|^sbn:|:sbn:' )
 envSet(SAM_EXPERIMENT, sbn)
+envSet(EXPERIMENT, sbn)
 else()
 envSet(SAM_EXPERIMENT, ${EXPERIMENT})
 endif( echo ${UPS_REQ_QUALIFIERS} | egrep -q '^sbn$|:sbn$|^sbn:|:sbn:' )
