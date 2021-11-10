@@ -276,6 +276,7 @@ echo "services.FileCatalogMetadata.fileType: \"$MDFILETYPE\"" >> $INPUTFCLNAME
 echo "services.FileCatalogMetadata.runType: \"$MDRUNTYPE\"" >> $INPUTFCLNAME
 echo "services.FileCatalogMetadata.group: \"$MDGROUPNAME\"" >> $INPUTFCLNAME
 echo "services.FileCatalogMetadataSBN.FCLName: \"$MDFCLNAME\"" >> $INPUTFCLNAME
+echo "services.FileCatalogMetadataSBN.Experiment: \"$MDGROUPNAME\"" >> $INPUTFCLNAME
 echo "services.FileCatalogMetadataSBN.ProjectName: \"$MDPROJECTNAME\"" >> $INPUTFCLNAME
 echo "services.FileCatalogMetadataSBN.ProjectStage: \"$MDPROJECTSTAGE\"" >> $INPUTFCLNAME
 echo "services.FileCatalogMetadataSBN.ProjectSoftware: \"$MDPROJECTSOFTWARE\"" >> $INPUTFCLNAME
@@ -287,6 +288,7 @@ if [ "$TFILEMDJSONNAME" ]; then
   #echo "services.MetadataSBN: @local::art_file_catalog_tfile" >> $INPUTFCLNAME
   echo "services.MetadataSBN.JSONFileName: \"$TFILEMDJSONNAME\"" >> $INPUTFCLNAME
   echo "services.MetadataSBN.fileFormat: \"root\"" >> $INPUTFCLNAME
+  echo "services.MetadataSBN.Experiment: \"$MDGROUPNAME\"" >> $INPUTFCLNAME
   # If we want to make caf files in production, lets set the output name here also
   if [ "$CAFNAME" ]
   then
