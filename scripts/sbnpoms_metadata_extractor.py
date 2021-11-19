@@ -404,6 +404,12 @@ def main(argv):
     json.dump(md, sys.stdout, sort_keys=True, indent=2)
     print()   # Json dump misses final newline.
 
+    if not os.path.exists('%s.json' % artroot):
+        artrootjson = open('%s.json' % artroot, "x")
+        json.dump(md, artrootjson, sort_keys=True, indent=2)
+        artrootjson.write("")
+        artrootjson.close()
+
     # Done
 
     return 0
