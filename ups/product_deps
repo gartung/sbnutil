@@ -33,6 +33,16 @@ product          version
 cetbuildtools	v7_17_01	-	only_for_build
 end_product_list
 
+table_fragment_begin
+if( echo ${UPS_REQ_QUALIFIERS} | egrep -q '^sbn$|:sbn$|^sbn:|:sbn:' )
+envSet(SAM_EXPERIMENT, sbn)
+envSet(EXPERIMENT, sbn)
+else()
+envSet(SAM_EXPERIMENT, ${EXPERIMENT})
+endif( echo ${UPS_REQ_QUALIFIERS} | egrep -q '^sbn$|:sbn$|^sbn:|:sbn:' )
+table_fragment_end
+
+
 # Preserve tabs and formatting in emacs and vi / vim:
 
 ### Local Variables:
