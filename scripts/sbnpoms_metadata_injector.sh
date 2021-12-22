@@ -293,6 +293,8 @@ if [ "$TFILEMDJSONNAME" ]; then
   if [ "$CAFNAME" ]
   then
     echo "physics.producers.cafmaker.CAFFilename: \"$CAFNAME\"" >> $INPUTFCLNAME
+    # Line below added while SBND use mycafmaker, temporary
+    echo "physics.producers.mycafmaker.CAFFilename: \"$CAFNAME\"" >> $INPUTFCLNAME
     echo "services.MetadataSBN.dataTier: \"cafana\"" >> $INPUTFCLNAME
   else
     echo "services.MetadataSBN.dataTier: \"root-tuple\"" >> $INPUTFCLNAME    
