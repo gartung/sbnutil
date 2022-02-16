@@ -4,7 +4,7 @@
 
 CMAKE_MINIMUM_REQUIRED (VERSION 3.11)
 
-project(sbnutil VERSION 00.00.03)
+project(sbnutil VERSION 00.00.04)
 
 # cetbuildtools contains our cmake modules
 find_package(cetbuildtools REQUIRED)

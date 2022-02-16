@@ -71,6 +71,28 @@ def get_samweb():
     return samweb
 
 
+# Return matching json file for specified data file (root file).
+# Return empty string if no matching json file is found.
+
+def matching_json_file(data_file):
+    result = ''
+    data_path = os.path.abspath(data_file)
+    dir = os.path.dirname(data_path)
+    fname = os.path.basename(data_path)
+    fname_noext = os.path.splitext(fname)[0]
+
+    # Hunt for longest matching json files.
+
+    for f in os.listdir(dir):
+        if f.endswith('.json'):
+            f_noext = os.path.splitext(f[:-5])[0]
+            if fname_noext.startswith(f_noext):
+                new_result = os.path.join(dir, f)
+                if len(new_result) > len(result):
+                    result = new_result
+    return result
+
+
 # Check the validity of a single parent.
 # Return value is a guaranteed valid list of parents (may be empty list)
 # Fcl list also updated to include fcls associated with virtual parents.
@@ -127,7 +149,7 @@ def check_parent(parentarg, dir, fcllist, mc_event_count):
         # If this parent doesn't have metadata, try to locate file.
 
         local_file = os.path.join(dir, parent)
-        if os.path.exists(local_file) or os.path.exists('%s.json' % local_file):
+        if os.path.exists(local_file) or matching_json_file(local_file) != '':
 
             # Found local file.  Extract parent information from file.
 
@@ -287,8 +309,8 @@ def get_metadata(artroot):
         # Sam_metadata_dumper failed.
         # Try to read metadata for corrsponding json file.
 
-        jsonfile = '%s.json' % artroot
-        if os.path.exists(jsonfile):
+        jsonfile = matching_json_file(artroot)
+        if jsonfile != '':
             f = open(jsonfile)
             md = json.load(f)
         else:
@@ -386,7 +408,7 @@ def main(argv):
         print('No artroot file specified.')
         sys.exit(1)
 
-    if not os.path.exists(artroot) and not os.path.exists('%s.json' % artroot):
+    if not os.path.exists(artroot) and matching_json_file(artroot) == '':
         print('Artroot file %s does not exist and there is no corresponding json file.' % artroot)
         sys.exit(1)
 
