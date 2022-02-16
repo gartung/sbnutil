@@ -76,14 +76,16 @@ def get_samweb():
 def is_uuid(s):
     result = False
     if len(s) == 37:
+        result = True
         for i in range(len(s)):
             if i==0 or i==9 or i==14 or i==19 or i==24:
                 if s[i] != '-':
+                    result = False
                     break
             else:
                 if s[i] not in string.hexdigits:
+                    result = False
                     break
-        result = True
 
     # Done.
 
