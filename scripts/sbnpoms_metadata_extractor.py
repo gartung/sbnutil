@@ -27,7 +27,7 @@
 #
 ########################################################################
 
-import sys, os, subprocess, json
+import sys, os, subprocess, json, string
 import samweb_cli
 
 samweb = None
@@ -71,25 +71,61 @@ def get_samweb():
     return samweb
 
 
-# Return matching json file for specified data file (root file).
+# Return true of the argument is a uuid.
+
+def is_uuid(s):
+    result = False
+    if len(s) == 37:
+        for i in range(len(s)):
+            if i==0 or i==9 or i==14 or i==19 or i==24:
+                if s[i] != '-':
+                    break
+            else:
+                if s[i] not in string.hexdigits:
+                    break
+        result = True
+
+    # Done.
+
+    return result
+
+
+# Return matching json file for specified data file (usually root file).
 # Return empty string if no matching json file is found.
+# This function understands that data files may have been renamed unique
+# by "ifdh renameOutput".  
 
 def matching_json_file(data_file):
     result = ''
     data_path = os.path.abspath(data_file)
     dir = os.path.dirname(data_path)
     fname = os.path.basename(data_path)
+
+    # fname_noext is the root file name without directory and extension.
+
     fname_noext = os.path.splitext(fname)[0]
 
-    # Hunt for longest matching json files.
+    # fname_trunc is the same as fname_noext minus a potential uuid that might
+    # have been added by ifdh renameOutput.
+    # A uuid has 37 characters following pattern "-hex(8)-hex(4)-hex(4)-hex(4)-hex(12)"
+
+    fname_trunc = fname_noext
+    if len(fname_noext) > 37:
+        uuid = fname_noext[-37:]
+        if is_uuid(uuid):
+            fname_trunc = fname_noext[:-37]
+
+    # Hunt for matching json files.
 
     for f in os.listdir(dir):
         if f.endswith('.json'):
             f_noext = os.path.splitext(f[:-5])[0]
-            if fname_noext.startswith(f_noext):
-                new_result = os.path.join(dir, f)
-                if len(new_result) > len(result):
-                    result = new_result
+            if f_noext == fname_noext or f_noext == fname_trunc:
+                result = os.path.join(dir, f)
+                break
+
+    # Done.
+
     return result
 
 
