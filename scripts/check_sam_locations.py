@@ -242,7 +242,7 @@ def main(argv):
                     if remove:
                         if check_path(fp):
                             print('Removing location.')
-                            #samweb.removeFileLocation(f, loc['location'])
+                            samweb.removeFileLocation(f, loc['location'])
                             nremoved += 1
                         else:
                             print('Location not removed because path is inaccessible')
