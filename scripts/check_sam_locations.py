@@ -13,7 +13,8 @@
 #
 # -h|--help             - Print help.
 # -e|--experiment <exp> - Experiment (default $SAM_EXPERIMENT).
-# -r|--remove           - If specified, bad locations are removed.
+# -r|--remove           - Remove bad locations.
+# -n|--nfiles           - Maximum number of files to check.
 # --def <defname>       - Parent definition (optional).
 # --list <filelist>     - File list (optional).
 # --file <filename>     - File name (optional).
@@ -69,6 +70,45 @@ def help():
                 print()
 
 
+# Check if it is OK to remove this path.
+# This means that the first two directories (i.e. /pnfs/<expr>) must exist.
+
+pathdict = {}
+
+def check_path(path):
+
+    global pathdict
+
+    result = False
+
+    # Extract head path.
+
+    split_path = path.split('/')
+    if len(split_path) >= 3:
+        head_path = '/%s/%s' % tuple(split_path[1:3])
+
+        # Check whether this head path has a known accessibility.
+
+        if head_path in pathdict:
+            result = pathdict[head_path]
+        else:
+
+            # Check accessibility of this head path.
+
+            print('Checking accessibility of head path %s' % head_path)
+            result = os.path.isdir(head_path)
+            if result:
+                print('%s is accessible' % head_path)
+            else:
+                print('%s is not accessible' % head_path)
+
+            # Remember status of this path.
+
+            pathdict[head_path] = result
+
+    return result
+
+
 # Main procedure.
 
 def main(argv):
@@ -99,6 +139,9 @@ def main(argv):
         elif (args[0] == '-e' or args[0] == '--experiment') and len(args) > 1:
             experiment = args[1]
             del args[0:2]
+        elif (args[0] == '-n' or args[0] == '--nfiles') and len(args) > 1:
+            nfiles = int(args[1])
+            del args[0:2]
         elif (args[0] == '--def') and len(args) > 1:
             defname = args[1]
             del args[0:2]
@@ -125,7 +168,7 @@ def main(argv):
         f_invalid = open(invalid_file, 'w')
         
 
-    # Make sure exactly one of --def, --list, and --file has been specified.
+    # Make sure no more than one of --def, --list, and --file has been specified.
 
     nopt = 0
     if defname != '':
@@ -134,9 +177,6 @@ def main(argv):
         nopt += 1
     if filename != '':
         nopt += 1
-    if nopt == 0:
-        print('No selection option from --def, --list, --file')
-        sys.exit(1)
     if nopt > 1:
         print('More than one selection option from --def, --list, --file')
         sys.exit(1)
@@ -148,13 +188,23 @@ def main(argv):
     # Construct list of files to check.
 
     files = []
-    if defname != '':
+    if nopt == 0:
+        dim = 'file_id > 0 with availability physical,anystatus'
+        if nfiles > 0:
+            dim += ' with limit %d' % nfiles
+        files = samweb.listFiles(dimensions=dim)
+    elif defname != '':
         dim = 'defname: %s with availability physical,anystatus' % defname
+        if nfiles > 0:
+            dim += ' with limit %d' % nfiles
         files = samweb.listFiles(dimensions=dim)
     elif filelist != '':
         f = open(filelist)
         for line in f.readlines():
             files.append(os.path.basename(line.strip()))
+            if nfiles > 0 and len(files) >= nfiles:
+                break
+        f.close()
     elif filename != '':
         files.append(os.path.basename(filename))
 
@@ -202,9 +252,12 @@ def main(argv):
                     # Maybe remove this location.
 
                     if remove:
-                        print('Removing location.')
-                        samweb.removeFileLocation(f, loc['location'])
-                        nremoved += 1
+                        if check_path(fp):
+                            print('Removing location.')
+                            samweb.removeFileLocation(f, loc['location'])
+                            nremoved += 1
+                        else:
+                            print('Location not removed because path is inaccessible')
                 
 
     if f_invalid:
