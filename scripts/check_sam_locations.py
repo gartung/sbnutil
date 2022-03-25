@@ -73,11 +73,7 @@ def help():
 # Check if it is OK to remove this path.
 # This means that the first two directories (i.e. /pnfs/<expr>) must exist.
 
-pathdict = {}
-
 def check_path(path):
-
-    global pathdict
 
     result = False
 
@@ -87,24 +83,16 @@ def check_path(path):
     if len(split_path) >= 3:
         head_path = '/%s/%s' % tuple(split_path[1:3])
 
-        # Check whether this head path has a known accessibility.
+        # Check accessibility of this head path.
 
-        if head_path in pathdict:
-            result = pathdict[head_path]
+        print('Checking accessibility of head path %s' % head_path)
+        result = os.path.isdir(head_path)
+        if result:
+            print('%s is accessible' % head_path)
         else:
+            print('%s is not accessible' % head_path)
 
-            # Check accessibility of this head path.
-
-            print('Checking accessibility of head path %s' % head_path)
-            result = os.path.isdir(head_path)
-            if result:
-                print('%s is accessible' % head_path)
-            else:
-                print('%s is not accessible' % head_path)
-
-            # Remember status of this path.
-
-            pathdict[head_path] = result
+    # Done.
 
     return result
 
@@ -254,7 +242,7 @@ def main(argv):
                     if remove:
                         if check_path(fp):
                             print('Removing location.')
-                            samweb.removeFileLocation(f, loc['location'])
+                            #samweb.removeFileLocation(f, loc['location'])
                             nremoved += 1
                         else:
                             print('Location not removed because path is inaccessible')
