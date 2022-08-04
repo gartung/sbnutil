@@ -157,6 +157,9 @@ def check_metadata(samweb1, samweb2, experiment, f, invalid_file):
         if migrate == 0:
             print('Migrate flag is already reset.')
             return migrate
+        if migrate == 2:
+            print('Metadata flag is already invalid.')
+            return migrate
 
     # Remove keys that we never want to migrate in the target database.
 
@@ -212,6 +215,15 @@ def check_metadata(samweb1, samweb2, experiment, f, invalid_file):
     # Quit if this file has any retired parents.
 
     if not parents_ok:
+
+        # Set the migrate flag to '2' so that this file won't be checked again.
+
+        print('Setting invalid metadata flag in source database.')
+        mdr = {}
+        mdr['sbn.migrate'] = 2
+        samweb1.modifyFileMetadata(f, md=mdr)
+        migrate = 2
+        nmodified += 1
         return migrate
 
     # At this point, we think that we need to add or update metadata for file f in 
@@ -321,7 +333,7 @@ def check_locations(samweb1, samweb2, f, invalid_file):
 
 
 # Check file metadata and locations.
-# Return True of metadata + locatio check was successful, False otherwise.
+# Return True of metadata + location check was successful, False otherwise.
 
 def check_file(samweb1, samweb2, experiment, f, invalid_file):
 
@@ -330,7 +342,7 @@ def check_file(samweb1, samweb2, experiment, f, invalid_file):
     ok = True
 
     migrate = check_metadata(samweb1, samweb2, experiment, f, invalid_file)
-    if migrate != 0:
+    if migrate != 0 and migrate != 2:
         ok = check_locations(samweb1, samweb2, f, invalid_file)
         if ok:
 
@@ -340,6 +352,8 @@ def check_file(samweb1, samweb2, experiment, f, invalid_file):
             md_update = {'sbn.migrate': 0}
             modifyFileMetadata(samweb1, f, md_update)
             nmigrated += 1
+    if ok and migrate == 2:
+        ok = False
 
     # Done.
 
