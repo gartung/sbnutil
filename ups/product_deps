@@ -42,7 +42,7 @@ table_fragment_end
 # Add the dependent product and version
 
 product          version
-art              v3_09_03
+art              v3_09_04
 larbatch         v01_57_01
 jobsub_client        -     -   optional
 cetbuildtools    v8_20_00  -   only_for_build
